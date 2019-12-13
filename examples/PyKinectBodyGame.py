@@ -33,7 +33,7 @@ class BodyGameRuntime(object):
         self._infoObject = pygame.display.Info()
         self._screen = pygame.display.set_mode((self._infoObject.current_w >> 1, self._infoObject.current_h >> 1), 
                                                pygame.HWSURFACE|pygame.DOUBLEBUF|pygame.RESIZABLE, 32)
-
+        print self._infoObject.current_w >> 1, self._infoObject.current_h >> 1
         pygame.display.set_caption("Kinect for Windows v2 Body Game")
 
         # Loop until the user clicks the close button.
@@ -47,6 +47,9 @@ class BodyGameRuntime(object):
 
         # back buffer surface for getting Kinect color frames, 32bit color, width and height equal to the Kinect color frame size
         self._frame_surface = pygame.Surface((self._kinect.color_frame_desc.Width, self._kinect.color_frame_desc.Height), 0, 32)
+        
+        # surface to draw skeleton
+        self._skeleton_surface = pygame.Surface((self._kinect.color_frame_desc.Width, self._kinect.color_frame_desc.Height), 0, 32)
 
         # here we will store skeleton data 
         self._bodies = None
@@ -69,7 +72,7 @@ class BodyGameRuntime(object):
         end = (jointPoints[joint1].x, jointPoints[joint1].y)
 
         try:
-            pygame.draw.line(self._frame_surface, color, start, end, 8)
+            pygame.draw.line(self._skeleton_surface, color, start, end, 8)
         except: # need to catch it due to possible invalid positions (with inf)
             pass
 
@@ -148,25 +151,46 @@ class BodyGameRuntime(object):
                     if not body.is_tracked: 
                         continue 
                     
-                    joints = body.joints 
+                    joints = body.joints
+
+
+                     
                     # convert joint coordinates to color space 
                     joint_points = self._kinect.body_joints_to_color_space(joints)
                     self.draw_body(joints, joint_points, SKELETON_COLORS[i])
 
+                    # # get the skeleton joint x y z
+                    # depth_points = self._kinect.body_joints_to_depth_space(joints)
+                    # x = int(depth_points[PyKinectV2.JointType_ElbowLeft].x)
+                    # y = int(depth_points[PyKinectV2.JointType_ElbowLeft].y)
+                    # print x, y
+                    # print joints[PyKinectV2.JointType_ElbowLeft].Position.x, joints[PyKinectV2.JointType_ElbowLeft].Position.y, joints[PyKinectV2.JointType_ElbowLeft].Position.z
+                    # 写入txt文件保存骨架数据
+                    # with open('test.txt','a+') as f:#使用with open()新建对象f
+                    #     # f.read()
+                    #     for i in range(PyKinectV2.JointType_Count):
+                    #         f.write(str(joints[i].Position.x) + ' ' + str(joints[i].Position.y) + ' ' + str(joints[i].Position.z) + ' ')#写入数据，文件保存在上面指定的目录，加\n为了换行更方便阅读
+                    #     f.write('\n')
+                    #     f.close()
             # --- copy back buffer surface pixels to the screen, resize it if needed and keep aspect ratio
             # --- (screen size may be different from Kinect's color frame size) 
             h_to_w = float(self._frame_surface.get_height()) / self._frame_surface.get_width()
-            target_height = int(h_to_w * self._screen.get_width())
-            surface_to_draw = pygame.transform.scale(self._frame_surface, (self._screen.get_width(), target_height));
+            # print self._frame_surface.get_height(), self._frame_surface.get_width()
+            target_height = int(h_to_w * self._screen.get_width() // 2)
+            surface_to_draw = pygame.transform.scale(self._frame_surface, (self._screen.get_width() // 2, target_height));
+            skeleton_surface_to_draw = pygame.transform.scale(self._skeleton_surface, (self._screen.get_width() // 2, target_height));
             self._screen.blit(surface_to_draw, (0,0))
+            self._screen.blit(skeleton_surface_to_draw, (self._screen.get_width() // 2, 0))
             surface_to_draw = None
+            skeleton_surface_to_draw = None
+            self._skeleton_surface.fill((0, 0, 0))
             pygame.display.update()
 
             # --- Go ahead and update the screen with what we've drawn.
             pygame.display.flip()
 
             # --- Limit to 60 frames per second
-            self._clock.tick(60)
+            self._clock.tick(30)
 
         # Close our Kinect sensor, close the window and quit.
         self._kinect.close()
