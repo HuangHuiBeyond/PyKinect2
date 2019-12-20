@@ -19,8 +19,10 @@ from pygame.locals import *
 from pgu import gui
 import time, sched
 import threading
-
+from socket import *
 from  datetime  import  datetime
+
+import cv2
 
 KINECT_MAX_BODY_COUNT = 6
 
@@ -524,7 +526,14 @@ class TimesUpDialog(gui.Dialog):
         gui.Dialog.__init__(self,title,gui.ScrollArea(doc,width,height))
 
 
-class SkeletonControl(gui.Table):
+class SkeletonControl(gui.Table): 
+    run_capture = False
+    mydatetime = "0-0-0-0-0-0-0"
+    status = "When there is a skeleton picture, click 'start' to record"
+    textarea = gui.TextArea(value=status, width=500, height=20)
+    name = gui.Input(value='',size=8)
+    kl_result = gui.Input(value='',size=8)
+    save_pic = False
     def __init__(self,**params):
         gui.Table.__init__(self,**params)
 
@@ -534,13 +543,11 @@ class SkeletonControl(gui.Table):
         self.td(gui.Label("Skeleton GUI",color=fg),colspan=2)
         
         self.tr()
-        self.td(gui.Label("Name: ",color=fg),align=1)
-        self.name = gui.Input(value='',size=8)
+        self.td(gui.Label("Name: ",color=fg),align=1) 
         self.td(self.name,colspan=3)
         
         self.tr()
         self.td(gui.Label("KL_Result: ",color=fg),align=1)
-        self.kl_result = gui.Input(value='',size=8)
         self.td(self.kl_result,colspan=3)
 
         self.tr()
@@ -554,45 +561,56 @@ class SkeletonControl(gui.Table):
         self.td(self.age,colspan=3)
         
         self.tr()
-        self.td(gui.Label("Height: ",color=fg),align=1)
+        self.td(gui.Label("Height(m): ",color=fg),align=1)
         self.height = gui.Input(value='',size=8)
         self.td(self.height,colspan=3)
 
         self.tr()
-        self.td(gui.Label("Weight: ",color=fg),align=1)
+        self.td(gui.Label("Weight(kg): ",color=fg),align=1)
         self.weight = gui.Input(value='',size=8)
         self.td(self.weight,colspan=3)
         
-        self.run_capture = False
-        self.mydatetime = "default"
+        # self.run_capture = False
+        # self.mydatetime = "default"
         def click_start_btn():
-            def get_datetime_string():
-                string = str(datetime.now())
-                mydate, mytime = string.split(" ")
-                hour, minute, second = mytime.split(":")
-                second = float(second)
-                millisecond = str(int((second - int(second)) * 1000))
-                second = str(int(second))
-                return mydate + "-" + hour + '-' + minute + '-' +  second + '-' + millisecond
-            self.mydatetime = get_datetime_string()
-            self.run_capture = True
-            # self.textarea.value = "recording"
-            def times_up():
-                self.run_capture = False
-                self.textarea.value = "times up, recording stopped"
-                # self.timesup_dialog.open()
-            s = sched.scheduler(time.time, time.sleep)
-            s.enter(10,1,times_up, ())
-            t=threading.Thread(target=s.run)
-            t.start()           
+            if SkeletonControl.run_capture:
+                self.textarea.value = "Recording Already Running"
+                return
+            else:
+                msg = "startrecording" +  "-" + self.name.value + '-' + self.kl_result.value
+                for i in range(10):
+                    self.lan_broadcast_msg(msg)
+                
+                def get_datetime_string():
+                    string = str(datetime.now())
+                    mydate, mytime = string.split(" ")
+                    hour, minute, second = mytime.split(":")
+                    second = float(second)
+                    millisecond = str(int((second - int(second)) * 1000))
+                    second = str(int(second))
+                    return mydate + "-" + hour + '-' + minute + '-' +  second + '-' + millisecond
+                # self.mydatetime = get_datetime_string()
+                
+                # self.textarea.value = "recording"
+                def times_up():
+                    # self.run_capture = False
+                    msg = 'timesup'
+                    for i in range(10):
+                        self.lan_broadcast_msg(msg)
+                    self.textarea.value = "times up, recording stopped"
+                    # self.timesup_dialog.open()
+                s = sched.scheduler(time.time, time.sleep)
+                s.enter(10,1,times_up, ())
+                t=threading.Thread(target=s.run)
+                t.start()           
         start_btn = gui.Button("Start")
         start_btn.connect(gui.CLICK, click_start_btn)
         self.tr()
         self.td(start_btn,colspan=3)
 
         def click_stop_btn():
-                if self.run_capture:
-                    self.run_capture = False
+                if SkeletonControl.run_capture:
+                    SkeletonControl.run_capture = False
                     self.textarea.value = "recording stopped" 
                 else:
                     self.textarea.value = "You hava to start recording first!!!"
@@ -603,18 +621,67 @@ class SkeletonControl(gui.Table):
         self.td(stop_btn,colspan=3)
 
         def click_save_pic_btn():
-            pass
+            SkeletonControl.save_pic = True
+            # print 'test'
+            # print self.save_pic
         save_pic_btn = gui.Button("Save Pic")
         save_pic_btn.connect(gui.CLICK, click_save_pic_btn)
         self.tr()
         self.td(save_pic_btn,colspan=3)
 
         self.tr()
-        status = "When there is a skeleton picture, click 'start' to record"
         self.td(gui.Label("MassageBox: ",color=fg),align=1)
-        self.textarea = gui.TextArea(value=status, width=500, height=20)
-        self.td(self.textarea, colspan=4)
+        self.td(SkeletonControl.textarea, colspan=4)
+    
 
+    def lan_broadcast_msg(self, msg):
+        host = "<broadcast>" # broadcast
+        port = 6666
+        addr = (host, port)
+        UDPSock = socket(AF_INET, SOCK_DGRAM)
+        UDPSock.bind(("", 0))
+        UDPSock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+        # buffer = msg.encode('utf-8')
+        # UDPSock.sendto(buffer, addr)
+        UDPSock.sendto(msg, addr)
+        UDPSock.close()
+
+
+class SocketReceiver:
+    def get_socket_data(self):
+        host = ""
+        port = 6666
+        buf = 1024
+        addr = (host, port)
+        UDPSock = socket(AF_INET, SOCK_DGRAM)
+        UDPSock.bind(addr)
+        while True:
+            (data, addr) = UDPSock.recvfrom(buf)
+            data = data.split('-')
+            print data
+            
+            if data[0] == "startrecording":
+                SkeletonControl.run_capture = True
+                SkeletonControl.mydatetime = self.get_datetime_string()
+                SkeletonControl.name.value = data[1]
+                SkeletonControl.kl_result.value = data[2]
+            if data[0] == "timesup":
+                SkeletonControl.run_capture = False
+                SkeletonControl.textarea.value = "times up, recording stopped"
+    
+    def get_datetime_string(self):
+        string = str(datetime.now())
+        mydate, mytime = string.split(" ")
+        hour, minute, second = mytime.split(":")
+        second = float(second)
+        millisecond = str(int((second - int(second)) * 1000))
+        second = str(int(second))
+        return mydate + "-" + hour + '-' + minute + '-' +  second + '-' + millisecond
+
+    def run(self):
+        self.get_socket_data()
+        
+        
 
 class BodyGameRuntime(object):
     def __init__(self):
@@ -627,7 +694,7 @@ class BodyGameRuntime(object):
         self._infoObject = pygame.display.Info()
         self._screen = pygame.display.set_mode(((self._infoObject.current_w >> 1) + 300, (self._infoObject.current_h >> 1) + 300), 
                                                pygame.HWSURFACE|pygame.DOUBLEBUF|pygame.RESIZABLE, 32)
-        pygame.display.set_caption("Kinect for Windows v2 Body Game")
+        pygame.display.set_caption("Kinect-based Gait Data Acquisition Software")
 
         # Loop until the user clicks the close button.
         self._done = False
@@ -646,6 +713,19 @@ class BodyGameRuntime(object):
 
         # here we will store skeleton data 
         self._bodies = None
+
+        self.app = gui.App()
+        # app = gui.Desktop()
+
+        self.skeletonCtrl =SkeletonControl()
+
+        self.c = gui.Container(align=-1,valign=-1)
+        
+        self.c.add(self.skeletonCtrl,self._screen.get_width() // 2 ,self._frame_surface.get_height() // 2)
+        # c.add(skeletonCtrl,300, 250)
+        
+        self.app.init(self.c)
+        # print c.get_abs_rect()
 
 
     def draw_body_bone(self, joints, jointPoints, color, joint0, joint1):
@@ -712,20 +792,13 @@ class BodyGameRuntime(object):
         del address
         target_surface.unlock()
 
+    
+
     def run(self):
-        app = gui.App()
-        # app = gui.Desktop()
-
-        skeletonCtrl =SkeletonControl()
-
-        c = gui.Container(align=-1,valign=-1)
-        
-        c.add(skeletonCtrl,self._screen.get_width() // 2 ,self._frame_surface.get_height() // 2)
-        # c.add(skeletonCtrl,300, 250)
-        
-        app.init(c)
-        # print c.get_abs_rect()
-
+        # run a new thread to receive socket data 
+        socket_receiver = SocketReceiver()
+        receiver = threading.Thread(target=socket_receiver.run)
+        receiver.start()
         
         # -------- Main Program Loop -----------
         while not self._done:
@@ -738,7 +811,7 @@ class BodyGameRuntime(object):
                     self._screen = pygame.display.set_mode(event.dict['size'], 
                                                pygame.HWSURFACE|pygame.DOUBLEBUF|pygame.RESIZABLE, 32)
                 else:
-                    app.event(event)
+                    self.app.event(event)
             # print self._frame_surface.get_rect()      
             # print self._skeleton_surface.get_rect()      
 
@@ -750,6 +823,7 @@ class BodyGameRuntime(object):
                 frame = self._kinect.get_last_color_frame()
                 self.draw_color_frame(frame, self._frame_surface)
                 frame = None
+
 
             # --- Cool! We have a body frame, so can get skeletons
             if self._kinect.has_new_body_frame(): 
@@ -767,12 +841,12 @@ class BodyGameRuntime(object):
                     joint_points = self._kinect.body_joints_to_color_space(joints)
                     self.draw_body(joints, joint_points, SKELETON_COLORS[i])
 
-                    # 写入txt文件保存骨架数据
-                    if skeletonCtrl.run_capture == True:
-                        skeletonCtrl.textarea.value = 'recording......'
-                        with open(skeletonCtrl.mydatetime + "-" + skeletonCtrl.name.value + "-" + skeletonCtrl.kl_result.value + ".txt",'a') as f:#使用with open()新建对象f
+                    # save skeleton data to .txt file 
+                    if SkeletonControl.run_capture == True:
+                        self.skeletonCtrl.textarea.value = 'recording......'
+                        with open(SkeletonControl.mydatetime + "-" + SkeletonControl.name.value + "-" + SkeletonControl.kl_result.value + ".txt",'a') as f:
                             for i in range(PyKinectV2.JointType_Count):                              
-                                f.write('{:.7f}'.format(joints[i].Position.x) + ' ' + '{:.7f}'.format(joints[i].Position.y) + ' ' + '{:.7f}'.format(joints[i].Position.z) + ' ')#写入数据，文件保存在上面指定的目录，加\n为了换行更方便阅读                            
+                                f.write('{:.7f}'.format(joints[i].Position.x) + ' ' + '{:.7f}'.format(joints[i].Position.y) + ' ' + '{:.7f}'.format(joints[i].Position.z) + ' ')                          
                             f.write("\n")
 
 
@@ -782,6 +856,9 @@ class BodyGameRuntime(object):
             # print self._frame_surface.get_height(), self._frame_surface.get_width()
             target_height = int(h_to_w * self._screen.get_width() // 2)
             surface_to_draw = pygame.transform.scale(self._frame_surface, (self._screen.get_width() // 2, target_height));
+            if SkeletonControl.save_pic == True:
+                pygame.image.save(self._frame_surface,"test.png")
+                SkeletonControl.save_pic = False
             skeleton_surface_to_draw = pygame.transform.scale(self._skeleton_surface, (self._screen.get_width() // 2, target_height));
             self._screen.blit(surface_to_draw, (0,0))
             self._screen.blit(skeleton_surface_to_draw, (self._screen.get_width() // 2, 0))
@@ -790,7 +867,7 @@ class BodyGameRuntime(object):
             self._skeleton_surface.fill((0, 0, 0))
             
             pygame.display.update()
-            app.paint()
+            self.app.paint()
 
             # --- Go ahead and update the screen with what we've drawn.
             pygame.display.flip()
