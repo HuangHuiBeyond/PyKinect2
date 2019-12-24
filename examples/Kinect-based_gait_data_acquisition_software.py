@@ -570,6 +570,8 @@ class SkeletonControl(gui.Table):
     age = gui.Input(value='',size=16)
     height = gui.Input(value='',size=16)
     weight = gui.Input(value='',size=16)
+    
+
     def __init__(self,**params):
         gui.Table.__init__(self,**params)
 
@@ -840,6 +842,7 @@ class SocketReceiver:
 
 
 class BodyGameRuntime(object):
+    
     def __init__(self):
         pygame.init()
 
@@ -868,21 +871,28 @@ class BodyGameRuntime(object):
         # surface to draw skeleton
         self._skeleton_surface = pygame.Surface((self._kinect.color_frame_desc.Width, self._kinect.color_frame_desc.Height), 0, 32)
 
+        self._gui_surface = pygame.Surface((self._screen.get_width(), self._screen.get_height() // 2), 0, 32)
+        
+
         # here we will store skeleton data 
         self._bodies = None
 
-        self.app = gui.App()
-        # app = gui.Desktop()
+        # self.app = gui.App()
+        
+        self.app = gui.Desktop()
+        # self.app.screen = self._gui_surface
+
+
 
         self.skeletonCtrl =SkeletonControl()
 
-        self.c = gui.Container(align=-1,valign=-1)
+        self.c = gui.Container(align=-1,valign=-1, x=self._screen.get_width() // 2, y=self._frame_surface.get_height() // 2)
         
-        self.c.add(self.skeletonCtrl,self._screen.get_width() // 2 - 70 ,self._frame_surface.get_height() // 2)
+        self.c.add(self.skeletonCtrl,0, 0)
         # c.add(skeletonCtrl,300, 250)
         
-        self.app.init(self.c)
-        # print c.get_abs_rect()
+        # self.app.init(widget=self.c)#, screen=self._gui_surface)  # area=(0, self._screen.get_height() // 2, self._screen.get_width(), self._screen.get_height() // 2))
+        self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2, self._screen.get_width(), self._screen.get_height() // 2))
 
 
     def draw_body_bone(self, joints, jointPoints, color, joint0, joint1):
@@ -959,6 +969,8 @@ class BodyGameRuntime(object):
         
         # -------- Main Program Loop -----------
         while not self._done:
+            # self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2, self._screen.get_width(), self._screen.get_height() // 2))
+
             # --- Main event loop
             for event in pygame.event.get(): # User did something
                 if event.type == pygame.QUIT: # If user clicked close
@@ -967,6 +979,8 @@ class BodyGameRuntime(object):
                 elif event.type == pygame.VIDEORESIZE: # window resized
                     self._screen = pygame.display.set_mode(event.dict['size'], 
                                                pygame.HWSURFACE|pygame.DOUBLEBUF|pygame.RESIZABLE, 32)
+                    self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2 + 50, self._screen.get_width(), self._screen.get_height() // 2 - 50))
+                    
                 else:
                     self.app.event(event)
             # print self._frame_surface.get_rect()      
@@ -1024,10 +1038,13 @@ class BodyGameRuntime(object):
                 SkeletonControl.save_pic_textarea.value = '"' + self.skeletonCtrl.get_datetime_string() + "-" + SkeletonControl.name.value + '-' + SkeletonControl.kl_result.value + '"' + " picture saved"
                 SkeletonControl.save_pic = False
             skeleton_surface_to_draw = pygame.transform.scale(self._skeleton_surface, (self._screen.get_width() // 2, target_height))
+            # gui_surface_to_draw = pygame.transform.scale(self._gui_surface, (self._screen.get_width(), self._screen.get_height() // 2))
             self._screen.blit(surface_to_draw, (0,0))
             self._screen.blit(skeleton_surface_to_draw, (self._screen.get_width() // 2, 0))
+            # self._screen.blit(gui_surface_to_draw, (0, self._screen.get_height() // 2))
             surface_to_draw = None
             skeleton_surface_to_draw = None
+            # gui_surface_to_draw = None
             self._skeleton_surface.fill((0, 0, 0))
             
             pygame.display.update()
