@@ -1,17 +1,13 @@
 '''The MIT License (MIT)
-
 Copyright (c) Microsoft
-
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
 to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
-
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -575,8 +571,8 @@ class SkeletonControl(gui.Table):
     def __init__(self,**params):
         gui.Table.__init__(self,**params)
 
-        fg = (255,255,255)
-        # self.timesup_dialog = TimesUpDialog()
+        fg = (0,0,0)
+        self.timesup_dialog = TimesUpDialog()
         self.tr()
         self.td(gui.Label("Skeleton GUI",color=fg),colspan=2)
         
@@ -739,7 +735,7 @@ class SkeletonControl(gui.Table):
         for i in range(10):
             self.lan_broadcast_msg(msg)
         self.textarea.value = "times up, recording stopped"
-        # self.timesup_dialog.open()
+        self.timesup_dialog.open()
 
 class Myscheduler(sched.scheduler):
     def __init__(self, timefunc=_time, delayfunc=time.sleep):
@@ -754,19 +750,16 @@ class Myscheduler(sched.scheduler):
         If blocking is False executes the scheduled events due to
         expire soonest (if any) and then return the deadline of the
         next scheduled call in the scheduler.
-
         When there is a positive delay until the first event, the
         delay function is called and the event is left in the queue;
         otherwise, the event is removed from the queue and executed
         (its action function is called, passing it the argument).  If
         the delay function returns prematurely, it is simply
         restarted.
-
         It is legal for both the delay function and the action
         function to modify the queue or to raise an exception;
         exceptions are not caught but the scheduler's state remains
         well-defined so run() may be called again.
-
         A questionable hack is added to allow other threads to run:
         just after an event is executed, a delay of 0 is executed, to
         avoid monopolizing the CPU when other threads are also
@@ -886,13 +879,20 @@ class BodyGameRuntime(object):
 
         self.skeletonCtrl =SkeletonControl()
 
-        self.c = gui.Container(align=-1,valign=-1, x=self._screen.get_width() // 2, y=self._frame_surface.get_height() // 2)
+        # self.c = gui.Container(align=-1,valign=-1, x=self._screen.get_width() // 2, y=self._frame_surface.get_height() // 2)
+        self.c = gui.Container(align=-1,valign=-1, x=0, y=0)
+
         
-        self.c.add(self.skeletonCtrl,0, 0)
-        # c.add(skeletonCtrl,300, 250)
+        # self.c.add(self.skeletonCtrl,0, 0)
+        self.c.add(self.skeletonCtrl,300, 0)
         
         # self.app.init(widget=self.c)#, screen=self._gui_surface)  # area=(0, self._screen.get_height() // 2, self._screen.get_width(), self._screen.get_height() // 2))
-        self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2, self._screen.get_width(), self._screen.get_height() // 2))
+        # self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2, self._screen.get_width(), self._screen.get_height() // 2))
+        self.h_to_w = float(self._frame_surface.get_height()) / self._frame_surface.get_width()
+            # print self._frame_surface.get_height(), self._frame_surface.get_width()
+        self.target_height = int(self.h_to_w * self._screen.get_width() // 2)
+        self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self.target_height, self._screen.get_width(), self._screen.get_height() - self.target_height))
+
 
 
     def draw_body_bone(self, joints, jointPoints, color, joint0, joint1):
@@ -979,7 +979,10 @@ class BodyGameRuntime(object):
                 elif event.type == pygame.VIDEORESIZE: # window resized
                     self._screen = pygame.display.set_mode(event.dict['size'], 
                                                pygame.HWSURFACE|pygame.DOUBLEBUF|pygame.RESIZABLE, 32)
-                    self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2 + 50, self._screen.get_width(), self._screen.get_height() // 2 - 50))
+                    self.target_height = int(self.h_to_w * self._screen.get_width() // 2)
+                    # self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self._screen.get_height() // 2 + 50, self._screen.get_width(), self._screen.get_height() // 2 - 50))
+                    self.app.init(widget=self.c, screen=self._screen, area=pygame.Rect(0, self.target_height, self._screen.get_width(), self._screen.get_height() - self.target_height))
+
                     
                 else:
                     self.app.event(event)
@@ -1029,15 +1032,15 @@ class BodyGameRuntime(object):
 
             # --- copy back buffer surface pixels to the screen, resize it if needed and keep aspect ratio
             # --- (screen size may be different from Kinect's color frame size) 
-            h_to_w = float(self._frame_surface.get_height()) / self._frame_surface.get_width()
+            # h_to_w = float(self._frame_surface.get_height()) / self._frame_surface.get_width()
             # print self._frame_surface.get_height(), self._frame_surface.get_width()
-            target_height = int(h_to_w * self._screen.get_width() // 2)
-            surface_to_draw = pygame.transform.scale(self._frame_surface, (self._screen.get_width() // 2, target_height))
+            # target_height = int(self.h_to_w * self._screen.get_width() // 2)
+            surface_to_draw = pygame.transform.scale(self._frame_surface, (self._screen.get_width() // 2, self.target_height))
             if SkeletonControl.save_pic == True:
                 pygame.image.save(self._frame_surface, self.skeletonCtrl.get_datetime_string() + "-" +  SkeletonControl.name.value + '-' + SkeletonControl.kl_result.value + '.png')
                 SkeletonControl.save_pic_textarea.value = '"' + self.skeletonCtrl.get_datetime_string() + "-" + SkeletonControl.name.value + '-' + SkeletonControl.kl_result.value + '"' + " picture saved"
                 SkeletonControl.save_pic = False
-            skeleton_surface_to_draw = pygame.transform.scale(self._skeleton_surface, (self._screen.get_width() // 2, target_height))
+            skeleton_surface_to_draw = pygame.transform.scale(self._skeleton_surface, (self._screen.get_width() // 2, self.target_height))
             # gui_surface_to_draw = pygame.transform.scale(self._gui_surface, (self._screen.get_width(), self._screen.get_height() // 2))
             self._screen.blit(surface_to_draw, (0,0))
             self._screen.blit(skeleton_surface_to_draw, (self._screen.get_width() // 2, 0))
@@ -1064,4 +1067,3 @@ class BodyGameRuntime(object):
 __main__ = "Kinect v2 Body Game"
 game = BodyGameRuntime()
 game.run()
-
